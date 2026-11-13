@@ -27,13 +27,27 @@ app.use(express.static(join(__dirname, 'public')))
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'changeme'
-const DATA_DIR       = process.env.DATA_DIR       || './data'
+
+// DATA_DIR: use env var if set, else ./data
+// If that path is not writable (disk not mounted yet), fall back to ./data inside app dir
+let DATA_DIR = process.env.DATA_DIR || './data'
+try {
+  mkdirSync(DATA_DIR, { recursive: true })
+} catch (e) {
+  if (e.code === 'EACCES') {
+    DATA_DIR = join(dirname(fileURLToPath(import.meta.url)), 'data')
+    console.warn(`[warn] ${process.env.DATA_DIR} not writable — falling back to ${DATA_DIR}`)
+    console.warn('[warn] Sessions will NOT survive redeploys. Add disk in Render dashboard to fix.')
+    mkdirSync(DATA_DIR, { recursive: true })
+  } else {
+    throw e
+  }
+}
+
 const AUTH_DIR       = join(DATA_DIR, 'auth')
 const ACCOUNTS_FILE  = join(DATA_DIR, 'accounts.json')
 const SESSIONS_FILE  = join(DATA_DIR, 'sessions.json')
 
-// Make sure DATA_DIR exists on startup
-mkdirSync(DATA_DIR, { recursive: true })
 mkdirSync(AUTH_DIR, { recursive: true })
 
 // ─── File-based JSON store (Render persistent disk) ───────────────────────────
