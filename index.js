@@ -1,14 +1,24 @@
 // language: Node.js ESM | file: index.js | target: Render Web Service
 // Multi-account WhatsApp panel — sessions persist via Render persistent disk
 
-import makeWASocket, {
+import * as baileysNs from '@whiskeysockets/baileys'
+
+// Baileys' CJS/ESM interop differs between versions; resolve exports defensively
+const B = { ...(baileysNs.default && typeof baileysNs.default === 'object' ? baileysNs.default : {}), ...baileysNs }
+const makeWASocket =
+  (typeof baileysNs.default === 'function' && baileysNs.default) ||
+  (typeof baileysNs.default?.default === 'function' && baileysNs.default.default) ||
+  (typeof B.makeWASocket === 'function' && B.makeWASocket) ||
+  (typeof B.default === 'function' && B.default)
+const {
   DisconnectReason,
   fetchLatestBaileysVersion,
   initAuthCreds,
   BufferJSON,
   makeCacheableSignalKeyStore,
   useMultiFileAuthState
-} from '@whiskeysockets/baileys'
+} = B
+if (typeof makeWASocket !== 'function') throw new Error('Could not resolve makeWASocket from baileys')
 import express from 'express'
 import { toDataURL } from 'qrcode'
 import { randomBytes } from 'crypto'
