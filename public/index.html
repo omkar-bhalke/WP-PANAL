@@ -1,0 +1,1238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>WA Multi Panel</title>
+<style>
+:root {
+  --bg:        #090909;
+  --surface:   #111111;
+  --surface2:  #181818;
+  --border:    #1f1f1f;
+  --border2:   #2a2a2a;
+  --text:      #e8e8e8;
+  --muted:     #555;
+  --muted2:    #3a3a3a;
+  --accent:    #25d366;
+  --accent-d:  #1aaa50;
+  --red:       #ff4d4d;
+  --yellow:    #f5c518;
+  --term-bg:   #040404;
+  --term-grn:  #00e676;
+  --term-grn2: #00c853;
+  --term-dim:  #2a2a2a;
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Utilities ── */
+.hidden { display: none !important; }
+
+/* ── Login Screen ── */
+#login-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  padding-top: calc(var(--safe-t) + 24px);
+  padding-bottom: calc(var(--safe-b) + 24px);
+}
+.login-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 36px 28px;
+  width: 100%;
+  max-width: 380px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.brand-icon {
+  width: 32px;
+  height: 32px;
+  background: var(--accent);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+.brand-name { font-size: 18px; font-weight: 700; color: #fff; }
+.brand-name span { color: var(--accent); }
+.login-sub { font-size: 13px; color: var(--muted); margin-bottom: 24px; }
+.field { margin-bottom: 14px; }
+.label {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+input, textarea {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: 10px;
+  padding: 12px 14px;
+  color: var(--text);
+  font-size: 15px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+  -webkit-appearance: none;
+}
+input:focus, textarea:focus { border-color: var(--accent); }
+input[type="number"] { -moz-appearance: textfield; }
+input::-webkit-inner-spin-button,
+input::-webkit-outer-spin-button { -webkit-appearance: none; }
+.btn {
+  width: 100%;
+  background: var(--accent);
+  color: #000;
+  border: none;
+  border-radius: 10px;
+  padding: 13px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn:active { background: var(--accent-d); }
+.btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.btn-sm {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 0.15s;
+}
+.btn-sm:hover { border-color: var(--accent); }
+.btn-danger {
+  background: transparent;
+  border: 1px solid #3a1515;
+  color: var(--red);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-danger:hover { background: #2a0f0f; }
+.msg-box {
+  margin-top: 10px;
+  font-size: 13px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  display: none;
+}
+.msg-box.error   { background: #2a1515; color: #ff7070; border: 1px solid #3a1f1f; display: block; }
+.msg-box.success { background: #0d1f0d; color: var(--accent); border: 1px solid #1a3a1a; display: block; }
+
+/* ── Panel Layout ── */
+#panel-screen {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  padding-left: var(--safe-l);
+  padding-right: var(--safe-r);
+}
+
+/* Sidebar */
+#sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding-top: var(--safe-t);
+}
+.sidebar-top {
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.sidebar-brand { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 7px; }
+.sidebar-brand .dot { color: var(--accent); }
+#account-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+#account-list::-webkit-scrollbar { width: 4px; }
+#account-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+.account-pill {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 14px;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  transition: background 0.1s, border-color 0.1s;
+  -webkit-tap-highlight-color: transparent;
+}
+.account-pill:hover { background: var(--surface2); }
+.account-pill.active {
+  background: var(--surface2);
+  border-left-color: var(--accent);
+}
+.conn-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.conn-dot.on  { background: var(--accent); box-shadow: 0 0 5px var(--accent); }
+.conn-dot.off { background: var(--muted2); }
+.conn-dot.qr  { background: var(--yellow); box-shadow: 0 0 5px var(--yellow); }
+.pill-info { flex: 1; min-width: 0; }
+.pill-num { font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pill-status { font-size: 11px; color: var(--muted); margin-top: 1px; }
+.sidebar-add {
+  padding: 10px 12px 12px;
+  padding-bottom: calc(12px + var(--safe-b));
+  border-top: 1px solid var(--border);
+}
+
+/* Main area */
+#main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-top: var(--safe-t);
+  padding-bottom: var(--safe-b);
+}
+
+/* Mobile: top bar + account strip */
+#mobile-topbar {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  padding-top: calc(var(--safe-t) + 12px);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+#mobile-account-strip {
+  display: none;
+  gap: 8px;
+  padding: 10px 14px;
+  overflow-x: auto;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+}
+#mobile-account-strip::-webkit-scrollbar { display: none; }
+.strip-pill {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text);
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 0.1s;
+}
+.strip-pill.active { border-color: var(--accent); color: var(--accent); }
+.strip-add {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 11px;
+  background: transparent;
+  border: 1px dashed var(--border2);
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+.strip-add:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Account view */
+#account-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Account header */
+#acct-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--surface);
+}
+#acct-phone { font-size: 15px; font-weight: 600; flex: 1; }
+#acct-status {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* QR section */
+#qr-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 20px;
+  flex: 1;
+}
+.qr-wrap {
+  background: #fff;
+  border-radius: 12px;
+  padding: 14px;
+  display: inline-block;
+  margin-bottom: 14px;
+}
+.qr-wrap img { display: block; width: 200px; height: 200px; }
+.qr-hint { font-size: 13px; color: var(--muted); text-align: center; max-width: 280px; line-height: 1.6; }
+.qr-hint strong { color: var(--text); }
+.qr-spinner {
+  width: 200px; height: 200px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; color: var(--muted); background: #f0f0f0;
+  border-radius: 8px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner-ring {
+  width: 28px; height: 28px;
+  border: 3px solid #ccc;
+  border-top-color: #25d366;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+/* Scrollable body (terminal + send panel) */
+#acct-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+#acct-body::-webkit-scrollbar { width: 4px; }
+#acct-body::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+/* OTP Terminal */
+.terminal-wrap {
+  background: var(--term-bg);
+  border: 1px solid #1a1a1a;
+  border-radius: 10px;
+  overflow: hidden;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 260px;
+  max-height: 400px;
+}
+.term-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid #161616;
+  background: #0a0a0a;
+}
+.term-title {
+  font-size: 11px;
+  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
+  color: var(--term-grn2);
+  letter-spacing: 1px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.term-title::before {
+  content: '';
+  display: inline-block;
+  width: 7px; height: 7px;
+  background: var(--term-grn);
+  border-radius: 50%;
+  box-shadow: 0 0 6px var(--term-grn);
+}
+.term-clear {
+  font-size: 11px;
+  color: var(--muted);
+  background: none;
+  border: 1px solid #222;
+  border-radius: 5px;
+  padding: 3px 8px;
+  cursor: pointer;
+  font-family: monospace;
+  transition: color 0.15s, border-color 0.15s;
+}
+.term-clear:hover { color: var(--term-grn); border-color: var(--term-grn); }
+#terminal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 12px;
+  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
+  font-size: 12.5px;
+  scroll-behavior: smooth;
+}
+#terminal-body::-webkit-scrollbar { width: 4px; }
+#terminal-body::-webkit-scrollbar-thumb { background: #1a1a1a; border-radius: 2px; }
+.term-empty {
+  color: #2a2a2a;
+  text-align: center;
+  margin-top: 40px;
+  font-size: 13px;
+  font-family: monospace;
+}
+.term-entry {
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #111;
+}
+.term-entry:last-child { border-bottom: none; margin-bottom: 0; }
+.term-ts { color: #333; font-size: 11px; margin-bottom: 3px; }
+.term-from { color: #666; margin-bottom: 2px; }
+.term-text { color: #aaa; word-break: break-word; line-height: 1.5; margin-bottom: 6px; }
+.otp-codes { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 6px; }
+.otp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #071a07;
+  border: 1px solid #1a3a1a;
+  border-radius: 6px;
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.otp-chip:hover { background: #0d2b0d; border-color: var(--term-grn2); }
+.otp-chip:active { background: #132b13; }
+.otp-num {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--term-grn);
+  letter-spacing: 4px;
+}
+.otp-copy { font-size: 10px; color: #2a7a2a; letter-spacing: 0.5px; }
+.otp-chip.copied .otp-copy { color: var(--term-grn); }
+.otp-chip.copied .otp-num  { color: var(--term-grn2); }
+
+/* Send panel */
+.send-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+}
+.send-panel .send-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.send-panel input { flex: 1; }
+.send-panel textarea { resize: vertical; min-height: 70px; margin-bottom: 10px; }
+
+/* Empty state */
+#empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  gap: 12px;
+  padding: 40px;
+}
+.empty-icon { font-size: 48px; opacity: 0.3; }
+.empty-text { font-size: 15px; color: var(--muted); text-align: center; }
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 20px;
+  padding-top: calc(var(--safe-t) + 20px);
+}
+.modal-card {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 16px;
+  padding: 24px;
+  width: 100%;
+  max-width: 380px;
+  position: relative;
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+.modal-title { font-size: 16px; font-weight: 600; }
+.modal-close {
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  color: var(--muted);
+  border-radius: 8px;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  transition: color 0.15s;
+}
+.modal-close:hover { color: var(--text); }
+.modal-qr-wrap {
+  background: #fff;
+  border-radius: 10px;
+  padding: 12px;
+  display: inline-block;
+  margin: 0 auto 12px;
+}
+.modal-qr-wrap img { display: block; width: 180px; height: 180px; }
+.modal-qr-center { text-align: center; }
+.modal-hint { font-size: 12px; color: var(--muted); line-height: 1.6; text-align: center; margin-top: 8px; }
+.modal-step { display: flex; flex-direction: column; align-items: stretch; }
+.success-icon { font-size: 48px; text-align: center; margin: 10px 0; }
+.success-text { text-align: center; color: var(--accent); font-size: 15px; font-weight: 600; }
+
+/* Responsive — mobile */
+@media (max-width: 640px) {
+  #sidebar { display: none; }
+  #mobile-topbar { display: flex; }
+  #mobile-account-strip { display: flex; }
+  #panel-screen { flex-direction: column; }
+  #main { padding-top: 0; }
+  .terminal-wrap { max-height: 300px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ══ LOGIN ══════════════════════════════════════════════════════════════════ -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="brand">
+      <div class="brand-icon">⚡</div>
+      <div class="brand-name">WA <span>Multi</span> Panel</div>
+    </div>
+    <p class="login-sub" style="margin-bottom:22px;">Enter admin password to continue</p>
+    <div class="field">
+      <label class="label">Password</label>
+      <input type="password" id="pwd-input" placeholder="••••••••"
+             onkeydown="if(event.key==='Enter') login()" autocomplete="current-password" />
+    </div>
+    <button class="btn" id="login-btn" onclick="login()">Enter Panel</button>
+    <div class="msg-box" id="login-msg"></div>
+  </div>
+</div>
+
+<!-- ══ PANEL ══════════════════════════════════════════════════════════════════ -->
+<div id="panel-screen" class="hidden">
+
+  <!-- Mobile top bar -->
+  <div id="mobile-topbar">
+    <div class="brand-name">⚡ WA <span style="color:var(--accent)">Panel</span></div>
+    <button class="btn-sm" onclick="showAddModal()">+ Add</button>
+  </div>
+
+  <!-- Mobile account strip -->
+  <div id="mobile-account-strip" id="mobile-strip">
+    <!-- Filled by JS -->
+  </div>
+
+  <!-- Desktop sidebar -->
+  <div id="sidebar">
+    <div class="sidebar-top">
+      <div class="sidebar-brand">⚡ WA<span class="dot">.</span>Panel</div>
+    </div>
+    <div id="account-list">
+      <!-- Filled by JS -->
+    </div>
+    <div class="sidebar-add">
+      <button class="btn" onclick="showAddModal()" style="font-size:13px;padding:10px;">+ Add Account</button>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div id="main">
+
+    <!-- Empty state -->
+    <div id="empty-state">
+      <div class="empty-icon">📱</div>
+      <div class="empty-text">Add a WhatsApp account<br>to get started</div>
+      <button class="btn" onclick="showAddModal()" style="max-width:200px;margin-top:4px;">+ Add Account</button>
+    </div>
+
+    <!-- Account view (shown when account selected) -->
+    <div id="account-view" class="hidden">
+
+      <!-- Header -->
+      <div id="acct-header">
+        <span id="acct-phone">+91…</span>
+        <span id="acct-status">
+          <span class="conn-dot off" id="acct-dot"></span>
+          <span id="acct-status-txt">—</span>
+        </span>
+        <button class="btn-danger" onclick="deleteSelected()">Remove</button>
+      </div>
+
+      <!-- QR section (when not connected) -->
+      <div id="qr-section" class="hidden">
+        <div class="qr-wrap">
+          <div class="qr-spinner" id="qr-spinner"><div class="spinner-ring"></div></div>
+          <img id="qr-img" style="display:none;" />
+        </div>
+        <p class="qr-hint">
+          <strong>Open WhatsApp</strong> on your phone →<br>
+          Settings → Linked Devices → Link a Device
+        </p>
+      </div>
+
+      <!-- Body: terminal + send -->
+      <div id="acct-body" class="hidden">
+
+        <!-- OTP Terminal -->
+        <div class="terminal-wrap">
+          <div class="term-header">
+            <span class="term-title">INCOMING MESSAGES</span>
+            <button class="term-clear" onclick="clearTerminal()">clear</button>
+          </div>
+          <div id="terminal-body">
+            <div class="term-empty" id="term-empty">// waiting for messages...</div>
+          </div>
+        </div>
+
+        <!-- Send Message -->
+        <div class="send-panel">
+          <div class="send-row">
+            <input id="send-to" type="tel" inputmode="numeric"
+                   placeholder="To: 919876543210" style="font-size:14px;" />
+          </div>
+          <textarea id="send-text" placeholder="Message..." rows="3"></textarea>
+          <button class="btn" id="send-btn" onclick="sendMsg()">Send ↗</button>
+          <div class="msg-box" id="send-msg"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ADD ACCOUNT MODAL ══════════════════════════════════════════════════════ -->
+<div id="add-modal" class="modal-overlay hidden">
+  <div class="modal-card">
+    <div class="modal-header">
+      <span class="modal-title">Add WhatsApp Account</span>
+      <button class="modal-close" onclick="closeAddModal()">✕</button>
+    </div>
+
+    <!-- Step 1: phone input -->
+    <div id="modal-phone-step" class="modal-step">
+      <div class="field">
+        <label class="label">WhatsApp Number</label>
+        <input id="new-phone" type="tel" inputmode="numeric"
+               placeholder="919876543210  (country code + number)"
+               onkeydown="if(event.key==='Enter') addAccount()" />
+      </div>
+      <button class="btn" id="add-btn" onclick="addAccount()">Connect</button>
+      <div class="msg-box" id="add-msg"></div>
+    </div>
+
+    <!-- Step 2: QR code -->
+    <div id="modal-qr-step" class="hidden">
+      <div class="modal-qr-center">
+        <div class="modal-qr-wrap">
+          <div class="qr-spinner" id="modal-qr-spinner" style="width:180px;height:180px;">
+            <div class="spinner-ring"></div>
+          </div>
+          <img id="modal-qr-img" style="display:none;width:180px;height:180px;" />
+        </div>
+      </div>
+      <p class="modal-hint">
+        <strong style="color:var(--text)">WhatsApp</strong> → Settings →<br>
+        Linked Devices → Link a Device → Scan
+      </p>
+    </div>
+
+    <!-- Step 3: success -->
+    <div id="modal-success-step" class="hidden">
+      <div class="success-icon">✅</div>
+      <div class="success-text">Account Connected!</div>
+      <p style="text-align:center;color:var(--muted);font-size:13px;margin-top:8px;">
+        Session saved — won't reset on restart
+      </p>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// State
+// ═══════════════════════════════════════════════════════
+let token         = sessionStorage.getItem('wa_token')
+let selectedPhone = null
+let accountState  = {}   // phone -> { connected, hasQR }
+let msgCache      = {}   // phone -> [MsgEntry]
+let qrPollTimer   = null
+let evtSource     = null
+
+// ═══════════════════════════════════════════════════════
+// Boot
+// ═══════════════════════════════════════════════════════
+;(async () => {
+  if (token) {
+    // validate token with a quick ping
+    const r = await api('/api/accounts').catch(() => null)
+    if (r !== null) {
+      showPanel()
+      return
+    }
+    sessionStorage.removeItem('wa_token')
+    token = null
+  }
+  show('login-screen')
+})()
+
+// ═══════════════════════════════════════════════════════
+// API helpers
+// ═══════════════════════════════════════════════════════
+async function api(url, opts = {}) {
+  opts.headers = { ...(opts.headers || {}), 'x-token': token, 'Content-Type': 'application/json' }
+  if (opts.body && typeof opts.body !== 'string') opts.body = JSON.stringify(opts.body)
+  const r = await fetch(url, opts)
+  if (r.status === 401) { logout(); throw new Error('auth') }
+  return r.json()
+}
+
+// ═══════════════════════════════════════════════════════
+// Login
+// ═══════════════════════════════════════════════════════
+async function login() {
+  const pwd = $('pwd-input').value
+  if (!pwd) return
+  $('login-btn').disabled = true
+
+  const r = await fetch('/api/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: pwd })
+  }).then(r => r.json()).catch(() => null)
+
+  $('login-btn').disabled = false
+
+  if (r?.token) {
+    token = r.token
+    sessionStorage.setItem('wa_token', token)
+    showPanel()
+  } else {
+    setMsg('login-msg', r?.error || 'Login failed', 'error')
+  }
+}
+
+function logout() {
+  sessionStorage.removeItem('wa_token')
+  token = null
+  if (evtSource) { evtSource.close(); evtSource = null }
+  show('login-screen')
+}
+
+// ═══════════════════════════════════════════════════════
+// Panel init
+// ═══════════════════════════════════════════════════════
+async function showPanel() {
+  hide('login-screen')
+  show('panel-screen')
+  connectSSE()
+  await loadAccounts()
+}
+
+async function loadAccounts() {
+  const list = await api('/api/accounts').catch(() => [])
+  for (const a of list) {
+    accountState[a.phone] = { connected: a.connected, hasQR: a.hasQR }
+    if (!msgCache[a.phone]) msgCache[a.phone] = []
+  }
+  renderSidebar()
+  if (list.length > 0 && !selectedPhone) selectAccount(list[0].phone)
+}
+
+// ═══════════════════════════════════════════════════════
+// SSE
+// ═══════════════════════════════════════════════════════
+function connectSSE() {
+  if (evtSource) evtSource.close()
+  evtSource = new EventSource(`/api/events?token=${token}`)
+
+  evtSource.addEventListener('snapshot', e => {
+    const list = JSON.parse(e.data)
+    for (const a of list) {
+      accountState[a.phone] = { connected: a.connected, hasQR: a.hasQR }
+      if (!msgCache[a.phone]) msgCache[a.phone] = []
+    }
+    renderSidebar()
+  })
+
+  evtSource.addEventListener('status', e => {
+    const { phone, connected, hasQR } = JSON.parse(e.data)
+    accountState[phone] = { connected, hasQR }
+    updatePillStatus(phone)
+    if (phone === selectedPhone) refreshAccountView()
+    // If this was the add-modal phone and it just connected
+    if (phone === addingPhone && connected) onModalConnected()
+  })
+
+  evtSource.addEventListener('message', e => {
+    const { phone, msg } = JSON.parse(e.data)
+    if (!msgCache[phone]) msgCache[phone] = []
+    msgCache[phone].unshift(msg)
+    if (msgCache[phone].length > 60) msgCache[phone].pop()
+    if (phone === selectedPhone) appendTerminalEntry(msg)
+  })
+
+  evtSource.addEventListener('removed', e => {
+    const { phone } = JSON.parse(e.data)
+    delete accountState[phone]
+    delete msgCache[phone]
+    renderSidebar()
+    if (phone === selectedPhone) {
+      selectedPhone = null
+      $('account-view').classList.add('hidden')
+      $('empty-state').classList.remove('hidden')
+    }
+  })
+
+  evtSource.onerror = () => {
+    evtSource.close()
+    setTimeout(connectSSE, 4000)
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// Sidebar
+// ═══════════════════════════════════════════════════════
+function renderSidebar() {
+  const phones = Object.keys(accountState)
+
+  // Desktop sidebar
+  const list = $('account-list')
+  list.innerHTML = ''
+  for (const phone of phones) {
+    const st  = accountState[phone]
+    const dot = st.connected ? 'on' : (st.hasQR ? 'qr' : 'off')
+    const lbl = st.connected ? 'Connected' : (st.hasQR ? 'Scan QR' : 'Connecting…')
+    const div = document.createElement('div')
+    div.className = 'account-pill' + (phone === selectedPhone ? ' active' : '')
+    div.setAttribute('data-phone', phone)
+    div.innerHTML = `
+      <div class="conn-dot ${dot}"></div>
+      <div class="pill-info">
+        <div class="pill-num">+${phone}</div>
+        <div class="pill-status">${lbl}</div>
+      </div>`
+    div.onclick = () => selectAccount(phone)
+    list.appendChild(div)
+  }
+
+  // Mobile strip
+  const strip = $('mobile-account-strip')
+  strip.innerHTML = ''
+  for (const phone of phones) {
+    const st  = accountState[phone]
+    const dot = st.connected ? 'on' : (st.hasQR ? 'qr' : 'off')
+    const sp  = document.createElement('div')
+    sp.className = 'strip-pill' + (phone === selectedPhone ? ' active' : '')
+    sp.setAttribute('data-phone', phone)
+    sp.innerHTML = `<span class="conn-dot ${dot}"></span>+${phone.slice(-6)}`
+    sp.onclick = () => selectAccount(phone)
+    strip.appendChild(sp)
+  }
+  const addBtn = document.createElement('div')
+  addBtn.className = 'strip-add'
+  addBtn.innerHTML = '+ Add'
+  addBtn.onclick = showAddModal
+  strip.appendChild(addBtn)
+
+  // Show/hide empty state
+  if (phones.length === 0) {
+    $('empty-state').classList.remove('hidden')
+    $('account-view').classList.add('hidden')
+    selectedPhone = null
+  }
+}
+
+function updatePillStatus(phone) {
+  const st  = accountState[phone] || {}
+  const dot = st.connected ? 'on' : (st.hasQR ? 'qr' : 'off')
+  const lbl = st.connected ? 'Connected' : (st.hasQR ? 'Scan QR' : 'Connecting…')
+
+  // Desktop
+  const pill = $('account-list').querySelector(`[data-phone="${phone}"]`)
+  if (pill) {
+    pill.querySelector('.conn-dot').className = `conn-dot ${dot}`
+    pill.querySelector('.pill-status').textContent = lbl
+  }
+  // Mobile
+  const sp = $('mobile-account-strip').querySelector(`[data-phone="${phone}"]`)
+  if (sp) {
+    sp.querySelector('.conn-dot').className = `conn-dot ${dot}`
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// Account view
+// ═══════════════════════════════════════════════════════
+async function selectAccount(phone) {
+  if (selectedPhone === phone) return
+  selectedPhone = phone
+
+  // Update active state
+  document.querySelectorAll('.account-pill').forEach(p =>
+    p.classList.toggle('active', p.getAttribute('data-phone') === phone))
+  document.querySelectorAll('.strip-pill').forEach(p =>
+    p.classList.toggle('active', p.getAttribute('data-phone') === phone))
+
+  $('empty-state').classList.add('hidden')
+  $('account-view').classList.remove('hidden')
+
+  $('acct-phone').textContent = `+${phone}`
+  refreshAccountView()
+
+  // Load messages if not cached
+  if (!msgCache[phone] || msgCache[phone].length === 0) {
+    const msgs = await api(`/api/accounts/${phone}/messages`).catch(() => [])
+    msgCache[phone] = msgs
+  }
+  renderTerminal()
+}
+
+function refreshAccountView() {
+  if (!selectedPhone) return
+  const st = accountState[selectedPhone] || {}
+
+  // Status badge
+  $('acct-dot').className = 'conn-dot ' + (st.connected ? 'on' : (st.hasQR ? 'qr' : 'off'))
+  $('acct-status-txt').textContent = st.connected ? 'Connected' : (st.hasQR ? 'Scan QR' : 'Connecting…')
+
+  // Show QR or body
+  if (st.connected) {
+    $('qr-section').classList.add('hidden')
+    $('acct-body').classList.remove('hidden')
+    clearQRPoll()
+  } else {
+    $('qr-section').classList.remove('hidden')
+    $('acct-body').classList.remove('hidden') // keep body visible even during reconnect
+    if (st.hasQR) loadQR()
+    else startQRPoll()
+  }
+}
+
+function loadQR() {
+  api(`/api/accounts/${selectedPhone}/qr`).then(d => {
+    if (!d?.qr) return
+    $('qr-img').src = d.qr
+    $('qr-img').style.display   = 'block'
+    $('qr-spinner').style.display = 'none'
+  }).catch(() => {})
+}
+
+function startQRPoll() {
+  clearQRPoll()
+  $('qr-img').style.display    = 'none'
+  $('qr-spinner').style.display = 'flex'
+  qrPollTimer = setInterval(() => {
+    if (!selectedPhone) return clearQRPoll()
+    const st = accountState[selectedPhone] || {}
+    if (st.connected) { clearQRPoll(); return }
+    if (st.hasQR) { loadQR(); clearQRPoll() }
+  }, 1500)
+}
+
+function clearQRPoll() {
+  if (qrPollTimer) { clearInterval(qrPollTimer); qrPollTimer = null }
+}
+
+// ═══════════════════════════════════════════════════════
+// Terminal
+// ═══════════════════════════════════════════════════════
+function renderTerminal() {
+  const body = $('terminal-body')
+  const msgs = msgCache[selectedPhone] || []
+
+  body.innerHTML = ''
+  if (msgs.length === 0) {
+    body.innerHTML = '<div class="term-empty">// waiting for messages...</div>'
+    return
+  }
+  for (const msg of msgs) {
+    body.appendChild(buildEntry(msg))
+  }
+  // Newest is at top (array unshifted), no auto-scroll needed
+}
+
+function appendTerminalEntry(msg) {
+  if (!selectedPhone) return
+  const body = $('terminal-body')
+  const empty = body.querySelector('.term-empty')
+  if (empty) empty.remove()
+  // Insert at top
+  body.insertBefore(buildEntry(msg), body.firstChild)
+}
+
+function buildEntry(msg) {
+  const div = document.createElement('div')
+  div.className = 'term-entry'
+
+  const time  = new Date(msg.ts)
+  const hhmm  = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const date  = time.toLocaleDateString([], { month: 'short', day: 'numeric' })
+
+  div.innerHTML = `
+    <div class="term-ts">${date} ${hhmm}</div>
+    <div class="term-from">from: +${escHtml(msg.from)}</div>
+    <div class="term-text">"${escHtml(msg.text)}"</div>`
+
+  if (msg.codes && msg.codes.length > 0) {
+    const codesDiv = document.createElement('div')
+    codesDiv.className = 'otp-codes'
+    for (const code of msg.codes) {
+      const chip = document.createElement('div')
+      chip.className = 'otp-chip'
+      chip.setAttribute('data-code', code)
+      chip.innerHTML = `
+        <span class="otp-num">${code}</span>
+        <span class="otp-copy">tap to copy</span>`
+      chip.onclick = () => copyCode(chip, code)
+      codesDiv.appendChild(chip)
+    }
+    div.appendChild(codesDiv)
+  }
+
+  return div
+}
+
+function copyCode(chip, code) {
+  navigator.clipboard.writeText(code).then(() => {
+    chip.classList.add('copied')
+    chip.querySelector('.otp-copy').textContent = 'copied!'
+    setTimeout(() => {
+      chip.classList.remove('copied')
+      chip.querySelector('.otp-copy').textContent = 'tap to copy'
+    }, 2000)
+  }).catch(() => {
+    // Fallback
+    const ta = document.createElement('textarea')
+    ta.value = code; ta.style.position = 'fixed'; ta.style.opacity = '0'
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy')
+    document.body.removeChild(ta)
+    chip.classList.add('copied')
+    chip.querySelector('.otp-copy').textContent = 'copied!'
+    setTimeout(() => {
+      chip.classList.remove('copied')
+      chip.querySelector('.otp-copy').textContent = 'tap to copy'
+    }, 2000)
+  })
+}
+
+function clearTerminal() {
+  if (!selectedPhone) return
+  msgCache[selectedPhone] = []
+  $('terminal-body').innerHTML = '<div class="term-empty">// cleared</div>'
+}
+
+// ═══════════════════════════════════════════════════════
+// Send message
+// ═══════════════════════════════════════════════════════
+async function sendMsg() {
+  const to   = $('send-to').value.replace(/\D/g, '')
+  const text = $('send-text').value.trim()
+  if (!to)   return setMsg('send-msg', 'Number dalo', 'error')
+  if (!text) return setMsg('send-msg', 'Message khali hai', 'error')
+  clearMsg('send-msg')
+
+  $('send-btn').disabled = true
+  $('send-btn').textContent = 'Bhej raha hai…'
+
+  const r = await api(`/api/accounts/${selectedPhone}/send`, {
+    method: 'POST', body: { to, text }
+  }).catch(() => null)
+
+  $('send-btn').disabled = false
+  $('send-btn').textContent = 'Send ↗'
+
+  if (r?.ok) {
+    setMsg('send-msg', '✓ Sent', 'success')
+    $('send-text').value = ''
+    setTimeout(() => clearMsg('send-msg'), 2500)
+  } else {
+    setMsg('send-msg', r?.error || 'Failed', 'error')
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// Add Account Modal
+// ═══════════════════════════════════════════════════════
+let addingPhone  = null
+let addQRTimer   = null
+
+function showAddModal() {
+  $('modal-phone-step').classList.remove('hidden')
+  $('modal-qr-step').classList.add('hidden')
+  $('modal-success-step').classList.add('hidden')
+  $('new-phone').value = ''
+  clearMsg('add-msg')
+  addingPhone = null
+  $('add-modal').classList.remove('hidden')
+  setTimeout(() => $('new-phone').focus(), 200)
+}
+
+function closeAddModal() {
+  $('add-modal').classList.add('hidden')
+  if (addQRTimer) { clearInterval(addQRTimer); addQRTimer = null }
+}
+
+async function addAccount() {
+  const phone = $('new-phone').value.replace(/\D/g, '')
+  if (phone.length < 7) return setMsg('add-msg', 'Valid number dalo (country code ke saath)', 'error')
+  clearMsg('add-msg')
+
+  $('add-btn').disabled = true
+  $('add-btn').textContent = 'Connecting…'
+
+  const r = await api('/api/accounts', { method: 'POST', body: { phone } }).catch(() => null)
+
+  $('add-btn').disabled = false
+  $('add-btn').textContent = 'Connect'
+
+  if (!r?.ok) {
+    setMsg('add-msg', r?.error || 'Failed', 'error')
+    return
+  }
+
+  addingPhone = r.phone
+  accountState[addingPhone] = { connected: false, hasQR: false }
+  msgCache[addingPhone] = []
+  renderSidebar()
+
+  // Show QR step
+  $('modal-phone-step').classList.add('hidden')
+  $('modal-qr-step').classList.remove('hidden')
+  $('modal-qr-img').style.display    = 'none'
+  $('modal-qr-spinner').style.display = 'flex'
+
+  // Poll for QR
+  addQRTimer = setInterval(async () => {
+    const st = accountState[addingPhone]
+    if (!st) return
+    if (st.connected) { onModalConnected(); return }
+    if (st.hasQR) {
+      const d = await api(`/api/accounts/${addingPhone}/qr`).catch(() => null)
+      if (d?.qr) {
+        $('modal-qr-img').src = d.qr
+        $('modal-qr-img').style.display    = 'block'
+        $('modal-qr-spinner').style.display = 'none'
+      }
+    }
+  }, 1500)
+}
+
+function onModalConnected() {
+  if (addQRTimer) { clearInterval(addQRTimer); addQRTimer = null }
+  $('modal-qr-step').classList.add('hidden')
+  $('modal-success-step').classList.remove('hidden')
+  renderSidebar()
+  selectAccount(addingPhone)
+  setTimeout(closeAddModal, 1800)
+}
+
+// ═══════════════════════════════════════════════════════
+// Delete account
+// ═══════════════════════════════════════════════════════
+async function deleteSelected() {
+  if (!selectedPhone) return
+  if (!confirm(`Remove +${selectedPhone}? This will log out this number.`)) return
+
+  await api(`/api/accounts/${selectedPhone}`, { method: 'DELETE' }).catch(() => {})
+  delete accountState[selectedPhone]
+  delete msgCache[selectedPhone]
+  selectedPhone = null
+  renderSidebar()
+  $('account-view').classList.add('hidden')
+  $('empty-state').classList.remove('hidden')
+}
+
+// ═══════════════════════════════════════════════════════
+// Helpers
+// ═══════════════════════════════════════════════════════
+function $(id)       { return document.getElementById(id) }
+function show(id)    { $(id).classList.remove('hidden') }
+function hide(id)    { $(id).classList.add('hidden') }
+function escHtml(s)  { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') }
+
+function setMsg(id, text, type) {
+  const el = $(id)
+  el.textContent = text
+  el.className = `msg-box ${type}`
+}
+function clearMsg(id) {
+  const el = $(id)
+  el.className = 'msg-box'
+  el.textContent = ''
+}
+</script>
+</body>
+</html>

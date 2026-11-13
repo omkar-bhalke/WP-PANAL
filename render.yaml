@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: wa-multi-panel
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: ADMIN_PASSWORD
+        sync: false          # Render dashboard mein set karo
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false          # Upstash se copy karo (session persistence ke liye)
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+      - key: NODE_ENV
+        value: production
