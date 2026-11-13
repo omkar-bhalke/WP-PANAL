@@ -724,7 +724,7 @@ input::-webkit-outer-spin-button { -webkit-appearance: none; }
 // ═══════════════════════════════════════════════════════
 // State
 // ═══════════════════════════════════════════════════════
-let token         = sessionStorage.getItem('wa_token')
+let token         = localStorage.getItem('wa_token')
 let selectedPhone = null
 let accountState  = {}   // phone -> { connected, hasQR }
 let msgCache      = {}   // phone -> [MsgEntry]
@@ -742,7 +742,7 @@ let evtSource     = null
       showPanel()
       return
     }
-    sessionStorage.removeItem('wa_token')
+    localStorage.removeItem('wa_token')
     token = null
   }
   show('login-screen')
@@ -777,7 +777,7 @@ async function login() {
 
   if (r?.token) {
     token = r.token
-    sessionStorage.setItem('wa_token', token)
+    localStorage.setItem('wa_token', token)
     showPanel()
   } else {
     setMsg('login-msg', r?.error || 'Login failed', 'error')
@@ -785,7 +785,7 @@ async function login() {
 }
 
 function logout() {
-  sessionStorage.removeItem('wa_token')
+  localStorage.removeItem('wa_token')
   token = null
   if (evtSource) { evtSource.close(); evtSource = null }
   show('login-screen')
