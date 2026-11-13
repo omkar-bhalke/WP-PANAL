@@ -2,15 +2,17 @@ services:
   - type: web
     name: wa-multi-panel
     env: node
-    plan: free
+    plan: starter
     buildCommand: npm install
     startCommand: node index.js
+    disk:
+      name: wa-data
+      mountPath: /data
+      sizeGB: 1
     envVars:
       - key: ADMIN_PASSWORD
-        sync: false          # Render dashboard mein set karo
-      - key: UPSTASH_REDIS_REST_URL
-        sync: false          # Upstash se copy karo (session persistence ke liye)
-      - key: UPSTASH_REDIS_REST_TOKEN
-        sync: false
+        sync: false        # Render dashboard mein apna password set karo
+      - key: DATA_DIR
+        value: /data       # sab kuch yahan store hoga — accounts, sessions, WA auth
       - key: NODE_ENV
         value: production

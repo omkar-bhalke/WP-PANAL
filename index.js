@@ -1,5 +1,5 @@
 // language: Node.js ESM | file: index.js | target: Render Web Service
-// Multi-account WhatsApp panel — sessions persist via Upstash Redis
+// Multi-account WhatsApp panel — sessions persist via Render persistent disk
 
 import makeWASocket, {
   DisconnectReason,
@@ -14,7 +14,10 @@ import { toDataURL } from 'qrcode'
 import { randomBytes } from 'crypto'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
-import { existsSync, mkdirSync, readdirSync, statSync, rmSync } from 'fs'
+import {
+  existsSync, mkdirSync, readdirSync, statSync, rmSync,
+  readFileSync, writeFileSync, renameSync
+} from 'fs'
 import pino from 'pino'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -24,92 +27,95 @@ app.use(express.static(join(__dirname, 'public')))
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'changeme'
-const REDIS_URL      = (process.env.UPSTASH_REDIS_REST_URL   || '').trim()
-const REDIS_TOKEN    = (process.env.UPSTASH_REDIS_REST_TOKEN || '').trim()
-const USE_REDIS      = !!(REDIS_URL && REDIS_TOKEN)
+const DATA_DIR       = process.env.DATA_DIR       || './data'
+const AUTH_DIR       = join(DATA_DIR, 'auth')
+const ACCOUNTS_FILE  = join(DATA_DIR, 'accounts.json')
+const SESSIONS_FILE  = join(DATA_DIR, 'sessions.json')
 
-// ─── Redis helpers (Upstash REST API) ─────────────────────────────────────────
-async function redisCmd(command, ...args) {
-  const r = await fetch(REDIS_URL, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${REDIS_TOKEN}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify([command, ...args])
-  })
-  const d = await r.json()
-  return d.result
+// Make sure DATA_DIR exists on startup
+mkdirSync(DATA_DIR, { recursive: true })
+mkdirSync(AUTH_DIR, { recursive: true })
+
+// ─── File-based JSON store (Render persistent disk) ───────────────────────────
+function readJSON(filePath, fallback) {
+  try { return JSON.parse(readFileSync(filePath, 'utf8')) }
+  catch { return fallback }
 }
 
-async function redisPipe(commands) {
-  if (!commands.length) return []
-  const r = await fetch(`${REDIS_URL}/pipeline`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${REDIS_TOKEN}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(commands)
-  })
-  return r.json()
+function writeJSON(filePath, data) {
+  const tmp = filePath + '.tmp'
+  writeFileSync(tmp, JSON.stringify(data, null, 2))
+  renameSync(tmp, filePath)   // atomic write — no partial file on crash
 }
 
-// ─── Auth State Adapter ───────────────────────────────────────────────────────
-// Redis: persists across redeploys  |  Local files: resets on redeploy
+// ─── Account persistence ──────────────────────────────────────────────────────
+function savedPhones()      { return readJSON(ACCOUNTS_FILE, []) }
+function savePhone(phone)   {
+  const s = new Set(savedPhones()); s.add(phone)
+  writeJSON(ACCOUNTS_FILE, [...s])
+}
+function unsavePhone(phone) {
+  writeJSON(ACCOUNTS_FILE, savedPhones().filter(p => p !== phone))
+}
+
+// ─── Admin session persistence ────────────────────────────────────────────────
+// In-memory cache + file fallback → survives redeploys
+const adminSessions = new Map() // token -> expiry (runtime cache)
+
+function sessionsFromFile() { return readJSON(SESSIONS_FILE, {}) }
+
+function flushSessions(map) {
+  // prune expired before writing
+  const now = Date.now()
+  const clean = {}
+  for (const [t, e] of Object.entries(map)) {
+    if (e > now) clean[t] = e
+  }
+  writeJSON(SESSIONS_FILE, clean)
+  return clean
+}
+
+function adminSessionSet(token, expiry) {
+  adminSessions.set(token, expiry)
+  const s = sessionsFromFile()
+  s[token] = expiry
+  flushSessions(s)
+}
+
+function adminSessionGet(token) {
+  // in-memory fast path
+  const exp = adminSessions.get(token)
+  if (exp) {
+    if (Date.now() < exp) return exp
+    adminSessions.delete(token)
+    return null
+  }
+  // file fallback — recovers sessions after redeploy
+  const s = sessionsFromFile()
+  const expiry = s[token]
+  if (expiry && Date.now() < expiry) {
+    adminSessions.set(token, expiry)   // repopulate cache
+    return expiry
+  }
+  return null
+}
+
+function loadSessionsFromFile() {
+  const s = sessionsFromFile()
+  const now = Date.now()
+  for (const [token, exp] of Object.entries(s)) {
+    if (exp > now) adminSessions.set(token, exp)
+  }
+}
+
+// ─── Auth State ───────────────────────────────────────────────────────────────
 async function buildAuthState(phone) {
-  if (USE_REDIS) return buildRedisAuthState(phone)
-  mkdirSync(`./auth/${phone}`, { recursive: true })
-  return useMultiFileAuthState(`./auth/${phone}`)
-}
-
-async function buildRedisAuthState(phone) {
-  const prefix = `wa:auth:${phone}`
-
-  async function rGet(key) {
-    const v = await redisCmd('GET', `${prefix}:${key}`)
-    return v ? JSON.parse(v, BufferJSON.reviver) : null
-  }
-
-  async function rSet(key, value) {
-    await redisCmd('SET', `${prefix}:${key}`, JSON.stringify(value, BufferJSON.replacer))
-  }
-
-  const creds = (await rGet('creds')) || initAuthCreds()
-
-  const state = {
-    creds,
-    keys: makeCacheableSignalKeyStore({
-      get: async (type, ids) => {
-        if (!ids.length) return {}
-        const cmds   = ids.map(id => ['GET', `${prefix}:k:${type}:${id}`])
-        const results = await redisPipe(cmds)
-        const out = {}
-        ids.forEach((id, i) => {
-          if (results[i]?.result)
-            out[id] = JSON.parse(results[i].result, BufferJSON.reviver)
-        })
-        return out
-      },
-      set: async (data) => {
-        const cmds = []
-        for (const [type, map] of Object.entries(data)) {
-          for (const [id, val] of Object.entries(map)) {
-            const k = `${prefix}:k:${type}:${id}`
-            cmds.push(val != null
-              ? ['SET', k, JSON.stringify(val, BufferJSON.replacer)]
-              : ['DEL', k])
-          }
-        }
-        if (cmds.length) await redisPipe(cmds)
-      }
-    }, pino({ level: 'silent' }))
-  }
-
-  const saveCreds = () => rSet('creds', creds)
-  return { state, saveCreds }
+  mkdirSync(join(AUTH_DIR, phone), { recursive: true })
+  return useMultiFileAuthState(join(AUTH_DIR, phone))
 }
 
 // ─── Account Manager ──────────────────────────────────────────────────────────
-// accounts: Map<phone, AccountEntry>
-// AccountEntry: { sock, connected, qr, msgs: [MsgEntry], stop }
 const accounts = new Map()
-
-// MsgEntry: { id, ts, from, text, codes }
 
 function extractCodes(text) {
   return [...new Set((text.match(/\b\d{4,8}\b/g) || []))]
@@ -122,9 +128,9 @@ function broadcast(event, data) {
 }
 
 async function connectAccount(phone) {
-  if (accounts.has(phone)) return // already running
+  if (accounts.has(phone)) return
 
-  const entry = { sock: null, connected: false, qr: null, msgs: [], reconnecting: false }
+  const entry = { sock: null, connected: false, qr: null, msgs: [] }
   accounts.set(phone, entry)
 
   async function doConnect() {
@@ -142,7 +148,6 @@ async function connectAccount(phone) {
     })
 
     entry.sock = sock
-
     sock.ev.on('creds.update', saveCreds)
 
     sock.ev.on('connection.update', async ({ connection, lastDisconnect, qr }) => {
@@ -158,12 +163,10 @@ async function connectAccount(phone) {
         broadcast('status', { phone, connected: false, hasQR: false })
 
         if (code === DisconnectReason.loggedOut) {
-          // Kicked out — clean up
           accounts.delete(phone)
-          if (USE_REDIS) await redisCmd('SREM', 'wa:accounts', phone).catch(() => {})
+          unsavePhone(phone)
           broadcast('removed', { phone })
         } else {
-          // Network drop / timeout — reconnect
           setTimeout(doConnect, 3500)
         }
       }
@@ -178,7 +181,7 @@ async function connectAccount(phone) {
     sock.ev.on('messages.upsert', ({ messages, type }) => {
       if (type !== 'notify') return
       for (const msg of messages) {
-        if (msg.key.fromMe) continue // skip messages we sent
+        if (msg.key.fromMe) continue
         const text =
           msg.message?.conversation ||
           msg.message?.extendedTextMessage?.text ||
@@ -186,104 +189,78 @@ async function connectAccount(phone) {
           ''
         if (!text) continue
 
-        const from  = (msg.key.remoteJid || '').replace(/@.+/, '')
-        const codes = extractCodes(text)
+        const from     = (msg.key.remoteJid || '').replace(/@.+/, '')
+        const codes    = extractCodes(text)
         const msgEntry = { id: msg.key.id, ts: Date.now(), from, text, codes }
 
         entry.msgs.unshift(msgEntry)
         if (entry.msgs.length > 60) entry.msgs.pop()
-
         broadcast('message', { phone, msg: msgEntry })
       }
     })
   }
 
   await doConnect()
-
-  // Register in persistence layer
-  if (USE_REDIS) {
-    await redisCmd('SADD', 'wa:accounts', phone).catch(() => {})
-  } else {
-    mkdirSync('./auth', { recursive: true })
-  }
+  savePhone(phone)
 }
 
 async function removeAccount(phone) {
   const entry = accounts.get(phone)
   if (entry?.sock) {
     try { await entry.sock.logout() } catch {}
-    try { entry.sock.end() } catch {}
+    try { entry.sock.end() }         catch {}
   }
   accounts.delete(phone)
-
-  if (USE_REDIS) {
-    await redisCmd('SREM', 'wa:accounts', phone).catch(() => {})
-    await redisCmd('DEL', `wa:auth:${phone}:creds`).catch(() => {})
-  } else {
-    try { rmSync(`./auth/${phone}`, { recursive: true, force: true }) } catch {}
-  }
+  unsavePhone(phone)
+  try { rmSync(join(AUTH_DIR, phone), { recursive: true, force: true }) } catch {}
 }
 
 async function loadSavedAccounts() {
-  let phones = []
-
-  if (USE_REDIS) {
-    phones = (await redisCmd('SMEMBERS', 'wa:accounts').catch(() => [])) || []
-  } else {
-    if (existsSync('./auth')) {
-      phones = readdirSync('./auth').filter(d => statSync(`./auth/${d}`).isDirectory())
-    }
-  }
-
+  const phones = savedPhones()
   for (const phone of phones) {
-    console.log(`Restoring account: ${phone}`)
+    console.log(`Restoring: ${phone}`)
     await connectAccount(phone).catch(e => console.error('Restore failed:', phone, e.message))
   }
 }
 
-// ─── Admin Sessions ───────────────────────────────────────────────────────────
-const adminSessions = new Map() // token -> expiry
-
+// ─── Admin middleware ─────────────────────────────────────────────────────────
 function requireAdmin(req, res, next) {
   const token = req.headers['x-token'] || req.query.token
-  const exp   = adminSessions.get(token)
-  if (!exp || Date.now() > exp) return res.status(401).json({ error: 'Auth required' })
+  if (!token) return res.status(401).json({ error: 'Auth required' })
+  const exp = adminSessionGet(token)
+  if (!exp) return res.status(401).json({ error: 'Auth required' })
   next()
 }
 
 // ─── SSE Clients ──────────────────────────────────────────────────────────────
-const sseClients = new Map() // clientId -> res
+const sseClients = new Map()
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
-// Admin login
 app.post('/api/login', (req, res) => {
   if ((req.body.password || '') !== ADMIN_PASSWORD)
     return res.status(401).json({ error: 'Wrong password' })
-  const token = randomBytes(32).toString('hex')
-  adminSessions.set(token, Date.now() + 86_400_000)
+  const token  = randomBytes(32).toString('hex')
+  const expiry = Date.now() + 86_400_000
+  adminSessionSet(token, expiry)
   res.json({ token })
 })
 
-// List accounts
 app.get('/api/accounts', requireAdmin, (_, res) => {
   const list = []
-  for (const [phone, entry] of accounts) {
+  for (const [phone, entry] of accounts)
     list.push({ phone, connected: entry.connected, hasQR: !!entry.qr })
-  }
   res.json(list)
 })
 
-// Add account
 app.post('/api/accounts', requireAdmin, async (req, res) => {
   const phone = (req.body.phone || '').replace(/\D/g, '')
-  if (phone.length < 7) return res.status(400).json({ error: 'Valid number required' })
+  if (phone.length < 7)   return res.status(400).json({ error: 'Valid number required' })
   if (accounts.has(phone)) return res.status(409).json({ error: 'Already exists' })
   await connectAccount(phone)
   res.json({ ok: true, phone })
 })
 
-// Remove account
 app.delete('/api/accounts/:phone', requireAdmin, async (req, res) => {
   const { phone } = req.params
   if (!accounts.has(phone)) return res.status(404).json({ error: 'Not found' })
@@ -291,24 +268,21 @@ app.delete('/api/accounts/:phone', requireAdmin, async (req, res) => {
   res.json({ ok: true })
 })
 
-// Get QR for account
 app.get('/api/accounts/:phone/qr', requireAdmin, (req, res) => {
   const entry = accounts.get(req.params.phone)
   if (!entry) return res.status(404).json({ error: 'Not found' })
   res.json({ qr: entry.qr, connected: entry.connected })
 })
 
-// Get messages (OTP log)
 app.get('/api/accounts/:phone/messages', requireAdmin, (req, res) => {
   const entry = accounts.get(req.params.phone)
   if (!entry) return res.status(404).json({ error: 'Not found' })
   res.json(entry.msgs)
 })
 
-// Send message
 app.post('/api/accounts/:phone/send', requireAdmin, async (req, res) => {
   const entry = accounts.get(req.params.phone)
-  if (!entry) return res.status(404).json({ error: 'Not found' })
+  if (!entry)           return res.status(404).json({ error: 'Not found' })
   if (!entry.connected) return res.status(503).json({ error: 'Not connected' })
 
   const to   = (req.body.to   || '').replace(/\D/g, '')
@@ -323,32 +297,25 @@ app.post('/api/accounts/:phone/send', requireAdmin, async (req, res) => {
   }
 })
 
-// SSE — real-time events stream
-// Token via query param because EventSource can't set headers
 app.get('/api/events', requireAdmin, (req, res) => {
   res.writeHead(200, {
-    'Content-Type':  'text/event-stream',
-    'Cache-Control': 'no-cache',
-    'Connection':    'keep-alive',
+    'Content-Type':      'text/event-stream',
+    'Cache-Control':     'no-cache',
+    'Connection':        'keep-alive',
     'X-Accel-Buffering': 'no'
   })
 
-  // Push current state immediately
   const snapshot = []
-  for (const [phone, entry] of accounts) {
+  for (const [phone, entry] of accounts)
     snapshot.push({ phone, connected: entry.connected, hasQR: !!entry.qr })
-  }
   res.write(`event: snapshot\ndata: ${JSON.stringify(snapshot)}\n\n`)
 
-  // Heartbeat every 25s to prevent proxy timeout
   const hb = setInterval(() => { try { res.write(':hb\n\n') } catch {} }, 25_000)
-
-  const id = randomBytes(8).toString('hex')
+  const id  = randomBytes(8).toString('hex')
   sseClients.set(id, res)
   req.on('close', () => { sseClients.delete(id); clearInterval(hb) })
 })
 
-// Keep-alive ping (Render free tier)
 app.get('/ping', (_, res) => res.send('ok'))
 const BASE_URL = process.env.RENDER_EXTERNAL_URL
 if (BASE_URL) {
@@ -358,6 +325,7 @@ if (BASE_URL) {
 // ─── Start ────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000
 app.listen(PORT, async () => {
-  console.log(`WA Multi-Panel on :${PORT} | Persistence: ${USE_REDIS ? 'Redis ✓' : 'Local Files (redeploy = re-scan)'}`)
+  console.log(`WA Multi-Panel on :${PORT} | Data: ${DATA_DIR} | Storage: Render disk`)
+  loadSessionsFromFile()
   await loadSavedAccounts()
 })
